@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>leaflet_v4</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
+<style>
+body{margin:0}#map{height:100vh}#toolbar{position:absolute;top:10px;left:50px;z-index:2000;background:#fff;padding:8px;border-radius:6px}#mgrs-display{position:absolute;bottom:10px;left:10px;z-index:2000;background:#fff;padding:6px}#panel{position:absolute;right:10px;top:10px;z-index:2000;background:#fff;padding:8px;max-width:280px}
+</style>
+</head>
+<body>
+<div id="toolbar">
+<input id="mgrs-input" placeholder="MGRS"><button id="mgrs-search">Etsi</button>
+<select id="layer-select"><option value="points">Pisteet</option><option value="routes">Reitit</option><option value="areas">Alueet</option><option value="intel">Havainnot</option></select>
+<input type="color" id="color-picker" value="#ff0000">
+<button id="save-btn">Tallenna</button>
+<input type="file" id="load-json" accept=".json">
+</div>
+<div id="map"></div>
+<div id="mgrs-display">Koordinaatit näkyvät hiiren alla</div>
+<div id="panel">Leaflet v4</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://unpkg.com/mgrs"></script>
+<script>
+const map=L.map('map').setView([61.5,24],6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+const layers={points:new L.FeatureGroup(),routes:new L.FeatureGroup(),areas:new L.FeatureGroup(),intel:new L.FeatureGroup()};
+Object.values(layers).forEach(l=>map.addLayer(l));
+L.control.layers(null,{Pisteet:layers.points,Reitit:layers.routes,Alueet:layers.areas,Havainnot:layers.intel}).addTo(map);
+const drawGroup=new L.FeatureGroup(); map.addLayer(drawGroup);
+const dc=new L.Control.Draw({edit:{featureGroup:drawGroup}}); map.addControl(dc);
+map.on('mousemove',e=>{document.getElementById('mgrs-display').innerText='Lat:'+e.latlng.lat.toFixed(5)+' Lon:'+e.latlng.lng.toFixed(5);});
+map.on(L.Draw.Event.CREATED,e=>{let layer=e.layer; let c=document.getElementById('color-picker').value; if(layer.setStyle) layer.setStyle({color:c}); layer.properties={name:prompt('Nimi','')||'',desc:prompt('Kuvaus','')||''}; let target=document.getElementById('layer-select').value; layers[target].addLayer(layer); drawGroup.addLayer(layer);});
+document.getElementById('mgrs-search').onclick=()=>{try{const p=mgrs.toPoint(document.getElementById('mgrs-input').value.trim()); map.setView([p[1],p[0]],15); L.marker([p[1],p[0]]).addTo(layers.points);}catch(e){alert('Virheellinen MGRS');}};
+document.getElementById('save-btn').onclick=()=>{const data={}; Object.keys(layers).forEach(k=>data[k]=layers[k].toGeoJSON()); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})); a.download='mapdata.json'; a.click();};
+document.getElementById('load-json').addEventListener('change',e=>{const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{const d=JSON.parse(r.result); Object.keys(d).forEach(k=>{L.geoJSON(d[k],{onEachFeature:(feature,layer)=>layers[k].addLayer(layer)});});}; r.readAsText(f);});
+</script>
+</body></html>
