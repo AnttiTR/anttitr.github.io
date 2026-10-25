@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>leaflet_v5</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<style>
+body{margin:0;font-family:Arial}#map{height:100vh}#toolbar{position:absolute;z-index:2000;top:10px;left:10px;background:#fff;padding:8px;border-radius:6px;max-width:420px}#measure{position:absolute;right:10px;top:10px;z-index:2000;background:#fff;padding:8px;max-width:300px;max-height:70vh;overflow:auto}#mgrs{position:absolute;left:10px;bottom:10px;z-index:2000;background:#fff;padding:6px}
+</style>
+</head><body>
+<div id='toolbar'>
+<input id='mgrsInput' placeholder='MGRS'><button id='searchBtn'>Etsi</button><br>
+<select id='layerSelect'><option value='points'>Pisteet</option><option value='routes'>Reitit</option><option value='areas'>Alueet</option><option value='intel'>Havainnot</option></select>
+<input type='color' id='color' value='#ff0000'>
+<button id='saveBtn'>Tallenna</button>
+<input type='file' id='loadFile' accept='.json'>
+</div>
+<div id='measure'>Valitse tai piirrä kohteita</div>
+<div id='mgrs'>Koordinaatit</div>
+<div id='map'></div>
+<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js'></script>
+<script src='https://unpkg.com/mgrs'></script>
+<script>
+const map=L.map('map').setView([61.5,24],6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+const layers={points:new L.FeatureGroup(),routes:new L.FeatureGroup(),areas:new L.FeatureGroup(),intel:new L.FeatureGroup()};
+Object.values(layers).forEach(l=>map.addLayer(l));
+L.control.layers(null,{Pisteet:layers.points,Reitit:layers.routes,Alueet:layers.areas,Havainnot:layers.intel}).addTo(map);
+const editGroup=new L.FeatureGroup(); map.addLayer(editGroup);
+map.addControl(new L.Control.Draw({edit:{featureGroup:editGroup}}));
+let id=1;
+function dist(a,b){const R=6371000;const dLat=(b.lat-a.lat)*Math.PI/180;const dLon=(b.lng-a.lng)*Math.PI/180;const x=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLon/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
+function updateInfo(layer){let h=''; if(layer.getLatLng){const p=layer.getLatLng();h+='Lat:'+p.lat.toFixed(6)+'<br>Lon:'+p.lng.toFixed(6);} document.getElementById('measure').innerHTML=h;}
+map.on('mousemove',e=>{document.getElementById('mgrs').innerHTML='Lat '+e.latlng.lat.toFixed(5)+' Lon '+e.latlng.lng.toFixed(5);});
+map.on(L.Draw.Event.CREATED,e=>{const layer=e.layer; const col=document.getElementById('color').value; if(layer.setStyle)layer.setStyle({color:col}); layer.feature={type:'Feature',properties:{id:id++,name:prompt('Nimi','')||'',description:prompt('Kuvaus','')||'',color:col}}; const target=document.getElementById('layerSelect').value; layers[target].addLayer(layer); editGroup.addLayer(layer); layer.on('click',()=>updateInfo(layer));});
+document.getElementById('searchBtn').onclick=()=>{try{const p=mgrs.toPoint(document.getElementById('mgrsInput').value); map.setView([p[1],p[0]],14); L.marker([p[1],p[0]]).addTo(layers.points);}catch(e){alert('Virheellinen MGRS');}};
+document.getElementById('saveBtn').onclick=()=>{const out={}; Object.keys(layers).forEach(k=>out[k]=layers[k].toGeoJSON()); const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='leaflet_v5_data.json'; a.click();};
+document.getElementById('loadFile').addEventListener('change',e=>{const f=e.target.files[0]; const r=new FileReader(); r.onload=()=>{const d=JSON.parse(r.result); Object.keys(d).forEach(k=>{L.geoJSON(d[k],{onEachFeature:(ft,l)=>{layers[k].addLayer(l);editGroup.addLayer(l);}});});}; if(f)r.readAsText(f);});
+</script></body></html>
